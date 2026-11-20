@@ -88,8 +88,6 @@ struct ContentView: View {
                                     .font(.headline)
                                     .frame(minWidth: 180)
                             }
-                            /*
-                            */
                             .buttonStyle(.borderedProminent)
                             .disabled(session.busy || selectedHost.address.isEmpty)
                         }
