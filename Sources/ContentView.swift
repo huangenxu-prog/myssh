@@ -49,7 +49,7 @@ struct ContentView: View {
                     .background(Color(red: 0.07, green: 0.09, blue: 0.12))
                     .foregroundStyle(.green)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .onChange(of: session.log) { _ in
+                    .onChange(of: session.log) {
                         withAnimation { proxy.scrollTo("end", anchor: .bottom) }
                     }
                 }
