@@ -5,7 +5,7 @@ struct ContentView: View {
     @State private var hosts: [SSHHost] = SSHHostStore.load()
     @State private var selectedID: UUID?
     @State private var editingHost: SSHHost?
-    @State private var password = ""
+    @State private var missingPassword = false
     @State private var command = ""
     @FocusState private var commandFocused: Bool
 
@@ -58,13 +58,11 @@ struct ContentView: View {
                         }
                         .frame(maxHeight: 190)
                         if let selectedHost {
-                            SecureField("SSH 密码", text: $password)
-                                .textFieldStyle(.roundedBorder)
                             Button(session.busy ? "连接中…" : "连接 \(selectedHost.displayName)") {
                                 connect(selectedHost)
                             }
                             .buttonStyle(.borderedProminent)
-                            .disabled(session.busy || selectedHost.address.isEmpty || password.isEmpty)
+                            .disabled(session.busy || selectedHost.address.isEmpty)
                         }
                     }
                 } else {
@@ -126,13 +124,18 @@ struct ContentView: View {
                         selectedID = hosts.first?.id
                     }
                 }
-                if let selectedHost { password = SSHPasswordStore.load(account: selectedHost.credentialAccount) }
                 commandFocused = false
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("清屏") { session.clear() }
                 }
+            }
+            .alert("未保存 SSH 密码", isPresented: $missingPassword) {
+                Button("去编辑") { editingHost = selectedHost }
+                Button("取消", role: .cancel) { }
+            } message: {
+                Text("请在服务器配置中填写并保存密码。")
             }
             .sheet(item: $editingHost) { host in
                 HostEditor(host: host, onSave: { updated, secret in
@@ -142,7 +145,7 @@ struct ContentView: View {
                         hosts.append(updated)
                     }
                     SSHHostStore.save(hosts)
-                    if !secret.isEmpty { _ = SSHPasswordStore.save(secret, account: updated.credentialAccount) }
+                    _ = SSHPasswordStore.save(secret, account: updated.credentialAccount)
                     select(updated)
                     editingHost = nil
                 }, onDelete: {
@@ -150,7 +153,6 @@ struct ContentView: View {
                     SSHHostStore.save(hosts)
                     _ = SSHPasswordStore.save("", account: host.credentialAccount)
                     selectedID = nil
-                    password = ""
                     if let first = hosts.first { select(first) }
                     editingHost = nil
                 }, onCancel: { editingHost = nil })
@@ -161,16 +163,19 @@ struct ContentView: View {
     private func select(_ host: SSHHost) {
         selectedID = host.id
         UserDefaults.standard.set(host.id.uuidString, forKey: "ssh.lastHostID")
-        password = SSHPasswordStore.load(account: host.credentialAccount)
         commandFocused = false
     }
 
     private func connect(_ host: SSHHost) {
         guard let port = Int(host.port), (1...65535).contains(port) else { return }
-        _ = SSHPasswordStore.save(password, account: host.credentialAccount)
+        let savedPassword = SSHPasswordStore.load(account: host.credentialAccount)
+        guard !savedPassword.isEmpty else {
+            missingPassword = true
+            return
+        }
         commandFocused = false
         Task { await session.connect(host: host.address.trimmingCharacters(in: .whitespacesAndNewlines),
-                                     port: port, user: host.username, password: password) }
+                                     port: port, user: host.username, password: savedPassword) }
     }
 
     private func send() {
@@ -210,7 +215,9 @@ private struct HostEditor: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 SecureField("密码", text: $password)
-                Button("删除此服务器", role: .destructive, action: onDelete)
+                if !host.address.isEmpty {
+                    Button("删除此服务器", role: .destructive, action: onDelete)
+                }
             }
             .navigationTitle("服务器配置")
             .toolbar {
