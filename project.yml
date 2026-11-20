@@ -2,7 +2,7 @@ name: MySSH
 options:
   bundleIdPrefix: com.huangenxu
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "17.0"
 packages:
   Citadel:
     url: https://github.com/orlandos-nl/Citadel
