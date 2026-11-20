@@ -2,11 +2,13 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var session = SSHSession()
-    @State private var host = ""
-    @State private var port = "22"
-    @State private var username = "root"
+    @AppStorage("ssh.host") private var host = ""
+    @AppStorage("ssh.port") private var port = "22"
+    @AppStorage("ssh.username") private var username = "root"
     @State private var password = ""
     @State private var command = ""
+
+    private var credentialAccount: String { "\(username)@\(host):\(port)" }
 
     var body: some View {
         NavigationStack {
@@ -24,6 +26,7 @@ struct ContentView: View {
                             .autocorrectionDisabled()
                         SecureField("SSH 密码", text: $password)
                         Button(session.busy ? "连接中…" : "连接 VPS") {
+                            _ = SSHPasswordStore.save(password, account: credentialAccount)
                             Task {
                                 await session.connect(host: host.trimmingCharacters(in: .whitespacesAndNewlines),
                                                       port: Int(port) ?? 22,
@@ -71,6 +74,10 @@ struct ContentView: View {
             }
             .padding()
             .navigationTitle("MySSH")
+            .onAppear { password = SSHPasswordStore.load(account: credentialAccount) }
+            .onChange(of: credentialAccount) { _, account in
+                password = SSHPasswordStore.load(account: account)
+            }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button("清屏") { session.clear() }
