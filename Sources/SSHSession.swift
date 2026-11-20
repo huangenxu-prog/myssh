@@ -17,6 +17,11 @@ final class SSHSession: ObservableObject {
             log += "请填写有效的主机、端口和用户名\n"
             return
         }
+        if let previous = client {
+            client = nil
+            connected = false
+            try? await previous.close()
+        }
         do {
             // TODO: replace permissive host-key handling with TOFU fingerprint verification.
             let newClient = try await SSHClient.connect(
