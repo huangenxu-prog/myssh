@@ -23,7 +23,8 @@ final class SSHSession: ObservableObject {
                 host: host,
                 port: port,
                 authenticationMethod: .passwordBased(username: user, password: password),
-                hostKeyValidator: .acceptAnything()
+                hostKeyValidator: .acceptAnything(),
+                reconnect: .never
             )
             client = newClient
             connected = true
