@@ -6,6 +6,8 @@ struct ContentView: View {
     @State private var selectedID: UUID?
     @State private var editingHost: SSHHost?
     @State private var missingPassword = false
+    @State private var showDeleteConfirmation = false
+    @State private var pendingDeleteID: UUID?
     @State private var command = ""
     @FocusState private var commandFocused: Bool
 
@@ -16,7 +18,7 @@ struct ContentView: View {
             VStack(spacing: 12) {
                 if !session.connected {
                     HStack {
-                        Text("我的服务器").font(.headline)
+                        Text("我的服务器").font(.title3.bold())
                         Spacer()
                         Button {
                             editingHost = SSHHost()
@@ -30,37 +32,64 @@ struct ContentView: View {
                         ScrollView {
                             LazyVStack(spacing: 8) {
                                 ForEach(hosts) { host in
-                                    HStack(spacing: 10) {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "server.rack")
+                                            .font(.title3)
+                                            .foregroundStyle(selectedID == host.id ? Color.blue : Color.secondary)
+                                            .frame(width: 30)
                                         Button {
                                             select(host)
                                         } label: {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(host.displayName).font(.headline)
-                                                Text("\(host.username)@\(host.address):\(host.port)")
+                                                    .foregroundStyle(.primary)
+                                                Text("\(host.address):\(host.port) · \(host.username)")
                                                     .font(.caption.monospaced())
                                                     .foregroundStyle(.secondary)
                                             }
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                         }
                                         .buttonStyle(.plain)
-                                        Button {
-                                            editingHost = host
-                                        } label: {
-                                            Image(systemName: "pencil").padding(8)
+                                        if selectedID == host.id {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(.blue)
                                         }
-                                        .accessibilityLabel("编辑 \(host.displayName)")
+                                        Menu {
+                                            Button("编辑", systemImage: "pencil") { editingHost = host }
+                                            Button("复制主机信息", systemImage: "doc.on.doc") {
+                                                UIPasteboard.general.string = "\(host.username)@\(host.address):\(host.port)"
+                                            }
+                                            Button("上移", systemImage: "arrow.up") { move(host, offset: -1) }
+                                            Button("下移", systemImage: "arrow.down") { move(host, offset: 1) }
+                                            Button("删除", systemImage: "trash", role: .destructive) {
+                                                pendingDeleteID = host.id
+                                                showDeleteConfirmation = true
+                                            }
+                                        } label: {
+                                            Image(systemName: "ellipsis")
+                                                .font(.headline)
+                                                .frame(width: 38, height: 38)
+                                                .background(.thinMaterial, in: Circle())
+                                        }
+                                        .accessibilityLabel("管理 \(host.displayName)")
                                     }
-                                    .padding(12)
-                                    .background(selectedID == host.id ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.08))
+                                    .padding(14)
+                                    .background(selectedID == host.id ? Color.blue.opacity(0.12) : Color.secondary.opacity(0.06))
                                     .clipShape(RoundedRectangle(cornerRadius: 10))
                                 }
                             }
                         }
-                        .frame(maxHeight: 190)
+                        .frame(maxHeight: 290)
                         if let selectedHost {
-                            Button(session.busy ? "连接中…" : "连接 \(selectedHost.displayName)") {
+                            Button {
                                 connect(selectedHost)
+                            } label: {
+                                Label(session.busy ? "连接中…" : "连接 \(selectedHost.displayName)", systemImage: "link")
+                                    .font(.headline)
+                                    .frame(minWidth: 180)
                             }
+                            /*
+                            */
                             .buttonStyle(.borderedProminent)
                             .disabled(session.busy || selectedHost.address.isEmpty)
                         }
@@ -131,6 +160,11 @@ struct ContentView: View {
                     Button("清屏") { session.clear() }
                 }
             }
+            .confirmationDialog("删除这台服务器？", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+                Button("删除服务器", role: .destructive) {
+                    if let id = pendingDeleteID { deleteHost(id) }
+                }
+            }
             .alert("未保存 SSH 密码", isPresented: $missingPassword) {
                 Button("去编辑") { editingHost = selectedHost }
                 Button("取消", role: .cancel) { }
@@ -157,6 +191,23 @@ struct ContentView: View {
                     editingHost = nil
                 }, onCancel: { editingHost = nil })
             }
+        }
+    }
+
+    private func move(_ host: SSHHost, offset: Int) {
+        guard let index = hosts.firstIndex(where: { $0.id == host.id }),
+              hosts.indices.contains(index + offset) else { return }
+        hosts.swapAt(index, index + offset)
+        SSHHostStore.save(hosts)
+    }
+
+    private func deleteHost(_ id: UUID) {
+        hosts.removeAll(where: { $0.id == id })
+        SSHHostStore.save(hosts)
+        _ = SSHPasswordStore.save("", account: id.uuidString)
+        if selectedID == id {
+            selectedID = nil
+            if let first = hosts.first { select(first) }
         }
     }
 
@@ -219,7 +270,7 @@ private struct HostEditor: View {
                     Button("删除此服务器", role: .destructive, action: onDelete)
                 }
             }
-            .navigationTitle("服务器配置")
+            .navigationTitle("编辑服务器")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("取消", action: onCancel) }
                 ToolbarItem(placement: .topBarTrailing) {
