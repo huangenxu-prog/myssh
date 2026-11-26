@@ -125,14 +125,24 @@ struct ContentView: View {
 
                 if session.connected {
                     HStack {
-                        TextField("点击输入命令", text: $command)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .submitLabel(.send)
-                            .focused($commandFocused)
-                            .onSubmit(send)
+                        ZStack(alignment: .topLeading) {
+                            if command.isEmpty {
+                                Text("点击输入命令")
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 8)
+                                    .allowsHitTesting(false)
+                            }
+                            TextEditor(text: $command)
+                                .scrollContentBackground(.hidden)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .focused($commandFocused)
+                                .padding(.horizontal, 4)
+                        }
+                        .font(.system(.body, design: .monospaced))
+                        .frame(height: CGFloat(min(6, max(1, command.components(separatedBy: .newlines).count))) * 22 + 18)
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.secondary.opacity(0.25)))
                         Button("执行", action: send)
                             .buttonStyle(.borderedProminent)
                             .disabled(session.busy || command.isEmpty)
